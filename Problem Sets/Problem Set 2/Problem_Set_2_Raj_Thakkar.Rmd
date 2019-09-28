@@ -1,0 +1,96 @@
+---
+title: "Problem Set 2"
+author: "Raj Thakkar"
+date: "22 January 2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE)
+```
+
+#### Note: I worked with Varun Miranda in the class
+
+### 1. Draw ONE graph that clearly shows the differences in the shape of the distributions of feeling thermometer scores for Clinton, Sanders, Rubio, and Trump. (A faceted plot counts as one graph.) Describe what you see in a paragraph.
+
+Importing the dataset
+
+```{r}
+
+library(readr)
+anes_pilot_2016 <- read_csv("anes_pilot_2016.csv")
+
+```
+
+```{r}
+
+print("Summary of fttrump is: ")
+summary(anes_pilot_2016$fttrump)
+
+print("Summary of fthrc is: ")
+summary(anes_pilot_2016$fthrc)
+
+print("Summary of ftsanders is: ")
+summary(anes_pilot_2016$ftsanders)
+
+print("Summary of ftrubio is: ")
+summary(anes_pilot_2016$ftrubio)
+
+```
+
+We can see that all the variables have a max value of 998. As per the document, any number above 100 in these variables is to be treated as missing value and has to be omitted. In order to draw the facetted graphs, we need to gather the variables in the dataset and then filter where Score <= 100. The filtering is done after gathering to reduce the data loss.
+
+```{r}
+library(tidyverse)
+
+anes_pilot_2016_feeling_gathered <- anes_pilot_2016 %>% gather(key = "Candidate", value = "Thermometer_score",c("fttrump","fthrc","ftsanders","ftrubio"))
+
+# Filtering on the variables and selecting only the desired variables for ease
+
+anes_pilot_2016_feeling_therm_gathered <- anes_pilot_2016_feeling_gathered %>% 
+                            filter(Thermometer_score <= 100) %>%
+                            select(immig_numb, Candidate, Thermometer_score)
+
+# Recoding the candidate names for ease of understanding
+
+candidate = recode(anes_pilot_2016_feeling_therm_gathered$Candidate, `fttrump` = "Donald Trump", `fthrc` = "Hillary Clinton", `ftsanders` = "Bernie Sanders", `ftrubio` = "Marco Rubio")
+
+#Changing the levels for easy comparison of distributions 
+
+anes_pilot_2016_feeling_therm_gathered$Candidate <- factor(candidate,levels = c("Bernie Sanders","Donald Trump","Marco Rubio","Hillary Clinton"), labels = c("Bernie Sanders","Donald Trump","Marco Rubio","Hillary Clinton"))
+
+```
+
+Now we will plot the graphs to compare the distributions
+
+```{r}
+
+ggplot(anes_pilot_2016_feeling_therm_gathered,aes(x = Thermometer_score)) + geom_density() +
+  facet_wrap(~Candidate, ncol = 2) + xlab("Thermometer Score") + ggtitle("Density plots of Thermometer Score for each candidate")
+
+```
+
+From the above graph, we can say that the spread of thermometer scores for each candiate is between 0 to 100. The distribution of scores for Marco Rubio has the highest peak near 50 which shows that many respondents were unsure about their feelings towards Marco Rubio. The distribution of Bernie Sanders is tri-modal and has peaks near 0, 50 and 100. The distributions of scores for Hillary Clinton and Donald Trump are interesting because they have similar shapes and they have the highest peaks near 0 which shows that many respondents felt cold towards them.
+
+### 2. Draw ONE graph that clearly shows the differences in the mean feeling thermometer score for each level of immigration attitude for each of the four candidates. (Again, a faceted plot counts as one graph.) Describe what you see in a paragraph.
+
+```{r}
+
+# Manipulating the data using group by to bring the data in desired format
+
+anes_pilot_2016_feeling_therm_mean <- anes_pilot_2016_feeling_therm_gathered %>% group_by(immig_numb,Candidate) %>% summarise(mean_ther_score = mean(Thermometer_score))
+
+```
+
+Plotting the means of each candiate by each group
+
+```{r}
+
+anes_pilot_2016_feeling_therm_mean$immig_numb <- factor(anes_pilot_2016_feeling_therm_mean$immig_numb,levels = c(1,2,3,4,5,6,7),labels = c("Increased a lot","Increased moderately", "Increased a little","Kept the same","Decreased a little","Decreased moderately","Decreased a lot"))
+ggplot(anes_pilot_2016_feeling_therm_mean,aes(x = mean_ther_score, y = immig_numb)) + geom_point() +
+  facet_wrap(~Candidate, ncol = 2) + xlab("Mean thermometer score") + ylab("No. of Immigrants should be") + 
+  ggtitle("Mean thermometer score for each candidate")
+
+```
+
+From the graph above, we can see that people who believe that number of immigrants should be "Decreased a lot" gave the highest mean score to Donald Trump while the mean score for Hillary Clinton was the lowest. Moreover, as we go from "Increased a lot" (immig_num = 0) to "Decreased a lot" (imig_num = 7) the mean thermometer score for Donald Trump increases, it decreases for Bernie Sanders and almost always decreases for Hillary Clinton. We don't spot any particular trend for Marco Rubio though.

@@ -1,0 +1,592 @@
+---
+title: "EDA Final Project"
+author: "Raj Thakkar, Abhilash Kuhikar, Dhruuv Agarwal, Darshan Shinde"
+date: "April 27, 2019"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE)
+```
+
+### Introduction to the problem:
+
+Based on a report published by Centers for Disease Control and Prevention, about 610,000 people die of heart disease in the United States every year; that's 1 in every 4 deaths. Moreover, more than half of the deaths due to heart disease in 2009 were in men.
+
+Men are usually more prone to heart diseases as compared to women. So in this project we wanted to focus on males and females separately in order to understand how does the impact of variable differ in men and women. 
+
+
+```{r echo = FALSE, warning = FALSE, message=FALSE}
+
+library(tidyverse)
+
+heart.data <- read.csv("https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/processed.cleveland.data",header=FALSE,sep=",",na.strings = '?')
+
+names(heart.data) <- c('Age', 'Gender', 'CP', 'Trestbps', 'Chol', 'FBS', 'RestECG',
+                 'Thalach', 'Exang', 'Oldpeak', 'Slope', 'CA', 'Thal', 'Goal')
+
+cb_palette = c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
+"#D55E00", "#CC79A7")
+
+```
+
+### Description of the data
+
+The data we are using in this project is Cleveland Heart Disease Data set available from UCI Machine Learning Repository. This database contains 14 attributes for 300 people. We tried to incorporate other Heart Disease Data sets available from UCI Machine Learning Repository but they had many missing values for the desired attributes
+
+
+The variables and their corresponding description are given below:
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+library(knitr)
+library(kableExtra)
+
+data_description <- data.frame(Name = rep("my_string", 14),
+                               Type = rep("my_string", 14),
+                               Description = rep("my_string", 14))
+
+data_description[,1] <- c('Age', 'Gender', 'CP', 'Trestbps', 'Chol', 'FBS', 'RestECG',
+                 'Thalach', 'Exang', 'Oldpeak', 'Slope', 'CA', 'Thal', 'Goal')
+
+data_description$Type <- c("Continuous","Discrete","Discrete","Continuous","Continuous","Discrete","Discrete","Continuous","Discrete","Continuous","Discrete","Continuous","Discrete","Discrete")
+
+data_description$Description <- c("Age (in years)","Sex (1 = male; 0 = female)", "Chest pain type (1 = typical angina; 2 = atypical angina; 3 = non-anginal pain; 4 = asymptomatic)", "Resting blood pressure (in mm Hg on admission to the hospital)","Serum cholestoral in mg/dl","Fasting blood sugar > 120 mg/dl (1 = true; 0 = false)","resting electrocardiographic results (0 = normal; 1 = having ST-T; 2 = hypertrophy)","maximum heart rate achieved","exercise induced angina (1 = yes; 0 = no)","ST depression induced by exercise relative to rest","The slope of the peak exercise ST segment (1 = upsloping; 2 = flat; 3 = downsloping)","Number of major vessels (0-3) colored by flourosopy","3 = normal; 6 = fixed defect; 7 = reversable defect","The predicted attribute - diagnosis of heart disease (angiographic disease status) (Value 0 = < 50% diameter narrowing; Value 1 = > 50% diameter narrowing)")
+
+
+
+kable(data_description,"latex", linesep = "", caption = "Data Dictionary") %>% kable_styling(latex_options = c("hold_position","scale_down")) %>% row_spec(0)
+
+```
+
+### Research Question: How do the variables explain the likelihood of men and women having a heart disease? How does the effect differ for men and women? 
+
+First we need to make corrections to the Goal variable which tells us about the diagnosis of heart disease as it has values 0, 1, 2, 3 and 4. 1, 2, 3 and 4 represent that the person has a heart disease so they will also be encoded as 1 for the ease of analysis.
+
+```{r warning = FALSE, message=FALSE, echo=FALSE}
+
+#Changing the values of goal > 1 to 1
+
+heart.data$Goal[heart.data$Goal > 0] <- 1
+heart.data$Goal_factor <- as.factor(heart.data$Goal)
+
+```
+
+Correlation value quantifies the magnitude of relationship that exists between a pair of variables. So, we will start by looking at the correlation of Goal variable which is our dependent variable with the independent variables available in the dataset. The plot has been divided into 4 parts (2 for males and 2 for females) as number of variables is too large to be displayed in a single plot (see appendix for pair plots).
+
+```{r warning = FALSE, message = FALSE, fig.width=15, fig.height=10, echo=FALSE}
+# heart.data$Goal[heart.data$Goal >= 1] = 1
+heart.data.male <- subset(heart.data, Gender == 1)
+heart.data.female <- subset(heart.data, Gender == 0)
+heart.data_first_7_variables.male <- heart.data.male %>% select(Age,Gender,CP,Trestbps,Chol,FBS,RestECG,Goal)
+heart.data_second_7_variables.male <- heart.data.male %>% select(Thalach,Exang,Oldpeak,Slope,CA,Thal,Goal)
+heart.data_first_7_variables.female <- heart.data.female %>% select(Age,Gender,CP,Trestbps,Chol,FBS,RestECG,Goal)
+heart.data_second_7_variables.female <- heart.data.female %>% select(Thalach,Exang,Oldpeak,Slope,CA,Thal,Goal)
+
+```
+
+For the sake of Exploratory Data Analysis, we will only focus on variables whose absolute value of correlation is greater than 0.45 with the Goal variable. We are doing this to avoid over fitting of the model especially for females. Many other variables were considered in the beginning but later on we decided to go for a simple model for the ease of interpretation.
+
+Thus the  variables for males are:
+
+1. Thalach (-0.467)
+2. Oldpeak (0.456)
+3. CA (0.467)  
+
+Thus the variables for females are:
+
+1. Oldpeak (0.611)
+2. CA (0.644)
+3. Thal (0.707)
+
+Out of these, only Thalach, Oldpeak and CA are continuous variables so we will do bi variate analysis using these continuous variables. We will also try to determine if there is an interaction between these variables. All the interactions have not been visualized due to the constraint on lengths of this report.
+
+First we will check the distribution of the Goal variable which is 1 if the person has a heart disease and 0 otherwise
+
+```{r warning = FALSE, message=FALSE, fig.width=5, fig.height=3, echo=FALSE}
+
+gg = ggplot(heart.data, aes(x = Goal_factor)) + geom_bar(width = 0.5, fill="steelblue") + labs(title = "Distribution of data according to diagnosis of heart disease", subtitle = "Diagnosis result: \n0: Diagnosed as person doesn't have heart disease, \n1: Diagnosed as person has heart disease") + xlab("Diagnosis result") + ylab("Count")
+
+gg + theme(
+  plot.title = element_text(size = 11, face = "bold"),
+  plot.subtitle = element_text(size = 8),
+  axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),
+  legend.title=element_text(size=9), 
+  legend.text=element_text(size=8))
+```
+
+We can see that number of 0's and 1's in the Goal variable are not very different. Thus there is not a huge amount of class imbalance in this dataset.
+
+Now we will look at the distribution of Males and Females in the given dataset. Usually heart disease is more associated with males so chances are that the data was collected primarily for males.
+
+```{r warning = FALSE, message=FALSE, fig.width=5, fig.height=3, echo=FALSE}
+
+#Changing the names of Gender Variable
+
+heart.data$Gender[heart.data$Gender==1] <- "Male"
+
+heart.data$Gender[heart.data$Gender==0] <- "Female"
+
+
+heart.data$Gender <- as.factor(heart.data$Gender)
+
+gg = ggplot(heart.data, aes(x = Gender, fill= Goal_factor)) + geom_bar(width = 0.5, position=position_dodge()) + xlab("Gender") + ylab("Count") + labs(title = "Distribution of data according to gender") + scale_fill_manual(name = "Diagnosis \nresult", values = cb_palette)
+
+gg + theme(
+  plot.title = element_text(size = 11, face = "bold"),
+  plot.subtitle = element_text(size = 8),
+  axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),
+  legend.title=element_text(size=9), 
+  legend.text=element_text(size=8))
+```
+
+We can see that male participants in the study are almost twice as compared to the female participants. Moreover, percentage of females with heart disease (~25%) is very less as compared to percentage of males with heart disease (~55%) in the given data.
+
+Now we will focus on the variable thalach which tells us about the maximum heart rate achieved by a person. We will first look at the distribution of values of thalach variable
+
+```{r warning = FALSE, message=FALSE, fig.width=5, fig.height=3, echo=FALSE}
+
+gg = ggplot(heart.data, aes(x=Thalach)) + geom_histogram() + labs(title = "Distribution of data according to maximum heart rate achieved \nfor Males and Females") + xlab("Maximum heart rate achieved") + facet_wrap(~Gender)
+
+gg + theme(
+  plot.title = element_text(size = 11, face = "bold"),
+  plot.subtitle = element_text(size = 8),
+  axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),
+  legend.title=element_text(size=9), 
+  legend.text=element_text(size=8))
+
+```
+
+We can see that the distribution is approximately normal and slightly right skewed for both males and females. Since the skew is not huge, we will not be using any transformations for the thalach variable.
+
+```{r warning = FALSE, message=FALSE, fig.width=5, fig.height=3, echo=FALSE}
+
+gg = ggplot(heart.data, aes(x = Thalach, y = Goal, group = Gender,color = Gender)) + geom_jitter(width = 0, height = 0.1) + geom_smooth(method = "glm", method.args = list(family = "binomial")) +  labs(title = "Distribution of maximum heart rate achieved against dianosis \nresult for males and females", subtitle = "Points have been jittered and Logistic Model has been fitted") + xlab("Maximum heart rate achieved") + ylab("Diagnosis result")
+
+gg + theme(
+  plot.title = element_text(size = 11, face = "bold"),
+  plot.subtitle = element_text(size = 8),
+  axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),
+  legend.title=element_text(size=9), 
+  legend.text=element_text(size=8))
+```
+A oerson's maximum heart rate plays a major role in setting your aerobic capacity-the amount of oxygen you are able to consume. Several large observational studies have indicated that a high aerobic capacity is associated with a lower risk of heart attack and death. 
+
+We can see that at the same values of max heart rate(Thalach), men are at higher risk of having a heart disease.
+
+One more important factor to determine if a person has a heart disease is old peak. To understand its meaning we referred to description by Anthony L. Komaroff, MD, an internal medicine specialist (see appendix).
+
+We will first look at the distribution of the variable 'Oldpeak'
+
+```{r warning = FALSE, message=FALSE, fig.width=5, fig.height=3, echo=FALSE}
+
+gg = ggplot(heart.data, aes(x=Oldpeak)) + geom_histogram() + labs(title = "Distribution of data according to ST depression induced by \nexercise for males and females") + xlab("ST depression induced by exercise") + facet_wrap(~Gender)
+
+gg + theme(
+  plot.title = element_text(size = 11, face = "bold"),
+  plot.subtitle = element_text(size = 8),
+  axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),
+  legend.title=element_text(size=9), 
+  legend.text=element_text(size=8))
+```
+
+From the graph above, we can see that value of ST depression induced by exercise is 0 for most of the males and females in the dataset. Since this basically means that they don't have any ST depression and taking a log of this variable will lead to a loss of data for most of the participants as log(0) = -Infinity, we will not use any transformation for Oldpeak variable.
+
+```{r warning = FALSE, message=FALSE, fig.width=5, fig.height=3, echo=FALSE}
+
+gg = ggplot(heart.data, aes(x = Oldpeak, y = Goal, group = Gender,color = Gender)) + geom_jitter(width = 0, height = 0.15) + geom_smooth(method = "glm", method.args = list(family = "binomial")) + labs(title = "Distribution of ST depression induced by exercise \nagainst dianosis result for Males and Females", subtitle = "Points have been jittered and Logistic Model has been fitted") + xlab("ST depression induced by exercise") + ylab("Diagnosis of heart disease")
+
+gg + theme(
+  plot.title = element_text(size = 11, face = "bold"),
+  plot.subtitle = element_text(size = 8),
+  axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),
+  legend.title=element_text(size=9), 
+  legend.text=element_text(size=8))
+
+```
+We can see that at low oldpeak values there's a significant difference of probabilities of heart diseases between males and females. The probability increases steadily with the value of oldpeak.
+
+Number of major vessels blocked in a person's heart will definitely help us identify if a person has a heart disease. 
+
+```{r warning = FALSE, message=FALSE, fig.width=5, fig.height=3, echo=FALSE}
+
+gg = ggplot(heart.data, aes(x=CA)) + geom_histogram() + labs(title = "Distribution of data according to number of major vessels \nblocked for Males and Females") + xlab("Number of major vessels blocked") + facet_wrap(~Gender)
+
+gg + theme(
+  plot.title = element_text(size = 11, face = "bold"),
+  plot.subtitle = element_text(size = 8),
+  axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),
+  legend.title=element_text(size=9), 
+  legend.text=element_text(size=8))
+```
+
+We can see that even though this is a continuous variables, it only takes 4 values i.e. 0, 1, 2 and 3 thus we cannot comment on the distribution of this variable as such.
+
+```{r warning = FALSE, message=FALSE, fig.width=5, fig.height=3, echo=FALSE}
+
+gg = ggplot(heart.data, aes(x = CA, y = Goal, group = Gender,color = Gender)) + geom_jitter(width = 0.15, height = 0.15) + geom_smooth(method = "glm", method.args = list(family = "binomial")) + labs(title = "Distribution of number of vesels blocked against diagnosis \nresult for Males and Females", subtitle = "Points have been jittered and Logistic Model has been fitted") + xlab("Number of major vessels blocked") + ylab("Diagnosis of heart disease") 
+
+gg + theme(
+  plot.title = element_text(size = 11, face = "bold"),
+  plot.subtitle = element_text(size = 8),
+  axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),
+  legend.title=element_text(size=9), 
+  legend.text=element_text(size=8))
+
+```
+
+The probability of Females getting a heart disease is lower than the probability of a Male getting a hear disease when they have equal number of heart vessels blocked. The probability increases steadily with increase in the number of vessels blocked.
+
+Now we will try to determine if we need an interaction between the 2 set of variables in our model.
+
+#### Interaction between Thalach and CA:
+
+```{r warning = FALSE, message=FALSE, echo=FALSE}
+
+gg = ggplot(heart.data, aes(x = CA, y = Goal, group = Gender,color = Gender)) + geom_jitter(width = 0.15, height = 0.15) + geom_smooth(method = "glm", method.args = list(family = "binomial")) + facet_wrap(~cut_number(Thalach,4)) + labs(title = "Distribution of number of vessles blocked against diagnosis result for different \nvalues of maximum heart rate achieved", subtitle = "Points have been jittered and Logistic Model has been fitted") + xlab("Number of major vessels blocked") + ylab("Diagnosis of hear disease") 
+
+gg + theme(
+  plot.title = element_text(size = 11, face = "bold"),
+  plot.subtitle = element_text(size = 8),
+  axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),
+  legend.title=element_text(size=9), 
+  legend.text=element_text(size=8))
+```
+
+The slope of CA doesn't change a lot for different values of Thalach variable which tells us about the maximum heart rate achieved by an individual in the dataset. Thus we cannot say that there is an interaction between Thalach and CA variable for either males or females.
+
+#### Interaction between Thalach and Oldpeak:
+
+```{r warning = FALSE, message=FALSE, fig.width=5, fig.height=3, echo=FALSE}
+
+gg = ggplot(heart.data, aes(x = Oldpeak, y = Goal,color = factor(Gender))) + geom_smooth(method = "glm", method.args = list(family = "binomial")) + geom_jitter(width = 0, height = 0.15) + facet_wrap(~cut_number(Thalach,2)) + labs(title = "Distribution of ST depression induced by exercise against \ndiagnosis result for different values of maximum heart rate \nachieved", subtitle = "Points have been jittered and Logistic Model has been fitted", color = "Gender") + xlab("ST depression induced by exercise") + ylab("Diagnosis of heart disease")
+
+gg + theme(
+  plot.title = element_text(size = 11, face = "bold"),
+  plot.subtitle = element_text(size = 8),
+  axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),
+  legend.title=element_text(size=9), 
+  legend.text=element_text(size=8))
+
+```
+
+From the graph above, we can see that slope of oldpeak for males and females don't change a lot with different values of Thalach variable which tells us about the maximum heart rate achieved by an individual in the dataset. Thus we cannot say that there is an interaction between Thalach and CA variable for either males or females.
+
+#### Interaction between Oldpeak and CA:
+
+```{r warning = FALSE, message=FALSE, echo=FALSE}
+
+heart.data_CA_nar <- heart.data %>% filter(!is.na(CA))
+
+gg = ggplot(heart.data_CA_nar, aes(x = Oldpeak, y = Goal,color = factor(Gender))) + geom_smooth(method = "glm", method.args = list(family = "binomial")) + geom_jitter(width = 0.15, height = 0.15) + facet_wrap(~CA)+ labs(title = "Distribution of ST depression induced by exercise against diagnosis result for \ndifferent values of number of major vessels blocked", subtitle = "Points have been jittered and Logistic Model has been fitted", color = "Gender") + xlab("ST depression induced by excercise") + ylab("Diagnosis of heart disease")
+
+gg + theme(
+  plot.title = element_text(size = 11, face = "bold"),
+  plot.subtitle = element_text(size = 8),
+  axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),
+  legend.title=element_text(size=9), 
+  legend.text=element_text(size=8))
+```
+
+The slope of Thalch doesn't change a lot for males with different value of CA i.e. the number of major vessels blocked. While the slopes are very different for females with different values of CA or number of major vessels blocked, we see that the slope changes for female population in the graphs, especially when CA is 0 (vessels colored) vs other values of CA. 
+
+The number of females with 3 major vessels blocked to number of females with 0 vessels blocked. Thus we cannot confidently say if an interaction between ST depression induced by exercise (Oldpeak) and Number of major vessels blocked (CA) exists for females as it can lead to over fitting.
+
+#### Interaction between Oldpeak and Thal:
+
+```{r warning = FALSE, message=FALSE, echo=FALSE}
+
+heart.data$Thal[heart.data$Thal == 3] <- "Normal"
+heart.data$Thal[heart.data$Thal == 6] <- "Fixed Defect"
+heart.data$Thal[heart.data$Thal == 7] <- "Reversible Defect"
+
+heart.data_Thal_nar <- heart.data %>% filter(!is.na(Thal))
+
+gg = ggplot(heart.data_Thal_nar, aes(x = Oldpeak, y = Goal, color = factor(Gender))) + geom_smooth(method = "glm", method.args = list(family = "binomial")) + geom_jitter(width = 0.15, height = 0.15) + facet_wrap(~Thal, ncol = 2) + labs(title = "Distribution of ST depression induced by exercise against diagnosis result for \ndifferent types of Thalesemia", subtitle = "Points have been jittered and Logistic Model has been fitted", color = "Gender") + xlab("ST depression induced by excercise") + ylab("Diagnosis of heart disease")
+
+gg + theme(
+  plot.title = element_text(size = 11, face = "bold"),
+  plot.subtitle = element_text(size = 8),
+  axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),
+  legend.title=element_text(size=9), 
+  legend.text=element_text(size=8))
+
+```
+
+There are not enough data points for females with Fixed defect Thalesemia so we cannot comment on the interaction of Thal and Oldpeak variable for Females. For Males, the slopes are almost the same and thus we cannot say that there is an interaction between Oldepeak and Thal variables.
+
+Thus, we will not be adding any interactions in the model since, we are likely to over fit the model by adding interactions especially for females.
+
+
+### Model Building 
+
+We are trying to compare the models fitted for male and female. For that it is required to have same variables in both model. Hence, we are trying to fit a simple additive logit model by considering the union of variables found which are highly correlated for male and female data. So, we are using Thalach, Oldpeak, CA and Thal variables. We still have the issue of over fitting because of less data available for females and hence we dropped the plan of adding any interaction between the variables in model.
+
+Let's try to fit the simple additive model on male data.
+
+```{r warning = FALSE, message=FALSE, echo=FALSE}
+
+heart.data.male$Thal[heart.data.male$Thal == 3] <- "Normal"
+heart.data.male$Thal[heart.data.male$Thal == 6] <- "Fixed Defect"
+heart.data.male$Thal[heart.data.male$Thal == 7] <- "Reversible Defect"
+
+# heart.data.male$Thal = as.factor(heart.data.male$Thal)
+all.male = glm(Goal ~ Thalach + Oldpeak + CA + Thal , family = "binomial", data = heart.data.male)
+all.male.prob = predict(all.male, heart.data.male, type="response")
+all.male.pred = rep("pred 0", dim(heart.data.male)[1])
+all.male.pred[all.male.prob > .5] = "pred 1"
+print("The confusion matrix for males is given below:")
+table(all.male.pred, heart.data.male$Goal)
+```
+
+From the confusion matrix above, the accuracy of model fitted for males is:
+
+$$(75+94)/(75+94+20+17) = 82.04\%$$
+
+The equation of the model fitted for males is:
+
+$$ Pr(Heart \space Disease) = logit^{-1}( 3.78 \space - \space 0.04 * Thal \space + \space 0.52*Oldpeak \space + \space 1.17*CA$$
+$$ - \space 0.33*ThalNormal \space + \space 1.25*ThalReversible \space Defect) $$
+
+Now let's try to fit a normal additive model on female data.
+
+```{r warning = FALSE, message=FALSE, echo=FALSE}
+
+heart.data.female$Thal[heart.data.female$Thal == 3] <- "Normal"
+heart.data.female$Thal[heart.data.female$Thal == 6] <- "Fixed Defect"
+heart.data.female$Thal[heart.data.female$Thal == 7] <- "Reversible Defect"
+
+
+# heart.data.female$Thal = as.factor(heart.data.female$Thal)
+all.female = glm(Goal ~ Thalach + Oldpeak + CA + Thal, family = "binomial", data = heart.data.female)
+all.female.prob = predict(all.female, heart.data.female, type="response")
+all.female.pred = rep("pred 0", dim(heart.data.female)[1])
+all.female.pred[all.female.prob > .5] = "pred 1"
+print("The confusion matrix for females is given below:")
+table(all.female.pred, heart.data.female$Goal)
+```
+
+From the confusion matrix above, the accuracy of model fitted for males is:
+
+$$(69+16)/(69+16+9+3) = 87.63\%$$
+
+The equation of the model fitted for males is:
+
+$$ Pr(Heart \space Disease) = logit^{-1}( 13.41 \space - \space 0.01 * Thal \space + \space 0.52 * Oldpeak \space + \space 0.84*CA \space - \space 15.11 *ThalNormal $$
+$$- \space 12.03*ThalReversible \space Defect) $$
+
+The coefficients of Logistic Regression are difficult to interpret. One way to understand their effects is to look at the Odds Ratio which tells us about the change in odds of a person having a hear disease when independent variable increases by 1 unit. The odds ratio for model fitted for males is given below:
+
+```{r warning = FALSE, message=FALSE, echo=FALSE}
+
+OR_male <- round((exp(cbind(OR= coef(all.male)[2:6])) - 1) * 100,2)
+
+kable(OR_male,"latex", linesep = "", caption = "Odds Ratio for Males") %>% kable_styling(latex_options = c("hold_position")) %>% row_spec(0)
+
+```
+
+From the above table, we get some interesting information. From the data in above table we can say that for every unit of increase in maximum heart rate achieved chances of having heart disease decreases by 3.63 % for males. Unit increment in ST depression induced by exercise leads to 69.03% increase in chances of having heart disease in males. There is huge impact of number of major vessels in which blockage has been observed during fluoroscopy on chances of having heart disease. For every single unit of increment of CA variable, it increase the chances of having heart disease by 221.44%. The odds of male with Normal Thalassemia is 28.11% lower than the male with Fixed defect Thalassemia. Similarly, the odds of a male with Reversible defect Thalassemia are 247.58% greater than the male with Fixed defect Thalassemia.
+
+```{r warning = FALSE, message=FALSE, echo=FALSE}
+
+OR_female <- round((exp(cbind(OR= coef(all.female)[2:6])) - 1) * 100,2)
+
+kable(OR_female,"latex", linesep = "", caption = "Odds Ratio for Males") %>% kable_styling(latex_options = c("hold_position")) %>% row_spec(0)
+
+```
+
+Now let's observe the results we got for female data. We can say that for every unit of increase in maximum heart rate achieved chances of having heart disease decreases by 0.68% for females. Unit increment in ST depression induced by exercise lead to 68.79% Increase in chances of having heart disease in females. There is somewhat high impact of number of major vessels in which blockage has been observed during fluoroscopy on chances of having heart disease. For every single unit of increment in it, it increase the chances of having heart disease by 131.92% for females. The odds of female with Normal Thalassemia is 100% lower than the female with Fixed defect Thalassemia. Similarly, the odds of a female with Reversible defect Thalassemia are 100% lower than the female with Fixed defect Thalassemia.
+
+Now let's try to visualize the fit of the model for every variable in case of both males and females. Here Thal is categorical variable has only 3 different possible values to it is technically not feasible to plot fitted graph for it. So, we tried to find a separate box plot for the Thal variable showing the range of predicted values for Goal variables with different values of Thal (See appendix).
+
+For other three variables we have fitted model on new grid data frame and predicted the chances of having heart disease for them. For each variable a grid has been implemented and the other independent variables are set to their median value for the sake of visualization
+
+```{r  warning = FALSE, message=FALSE, fig.width=5, fig.height=5, echo=FALSE}
+
+heart.male.model_vars_only <- heart.data.male %>% select(Thalach, CA, Oldpeak, Thal, Goal)
+heart.female.model_vars_only <- heart.data.female %>% select(Thalach, CA, Oldpeak, Thal, Goal)
+
+```
+
+```{r warning = FALSE, message=FALSE, fig.width=5, fig.height=5, echo=FALSE}
+heart.data.male <- subset(heart.data, Gender = 1)
+heart.data.male <- heart.data.male %>%drop_na()
+Thalach_seq.male<-seq(71, 202, 1)
+sim.dat_Thalach.male<-data.frame(Thalach = Thalach_seq.male, 
+                    CA = median(heart.data.male$CA,na.rm=T),
+                    Oldpeak = median(heart.data.male$Oldpeak,na.rm=T),
+                    Thal = median(heart.data.male$Thal))
+sim.dat_Thalach.male$Thal <- factor(sim.dat_Thalach.male$Thal)
+sim.dat_Thalach.male$Goal<-predict(all.male, newdata = sim.dat_Thalach.male, type = "response")
+sim.Thalach.male.df <- data.frame(Variable = rep(c("Thalach"),132),
+                                  Value = Thalach_seq.male,
+                                  heart_disease_prob = sim.dat_Thalach.male$Goal)
+
+CA_seq.male<-seq(0, 3, 0.1)
+sim.dat_CA.male<-data.frame(Thalach = median(heart.data.male$Thalach,na.rm=T), 
+                    CA = CA_seq.male,
+                    Oldpeak = median(heart.data.male$Oldpeak,na.rm=T),
+                    Thal = median(heart.data.male$Thal,na.rm=T))
+sim.dat_CA.male$Thal <- factor(sim.dat_CA.male$Thal)
+sim.dat_CA.male$Goal<-predict(all.male, newdata = sim.dat_CA.male, type = "response")
+sim.CA.male.df <- data.frame(Variable = rep(c("CA"),31),
+                                  Value = CA_seq.male,
+                                  heart_disease_prob = sim.dat_CA.male$Goal)
+
+Oldpeak_seq.male<-seq(0, 5.6, 0.1)
+sim.dat_Oldpeak.male<-data.frame(Thalach = median(heart.data.male$Thalach,na.rm=T), 
+                    CA = median(heart.data.male$CA,na.rm=T),
+                    Oldpeak = Oldpeak_seq.male,
+                    Thal = median(heart.data.male$Thal,na.rm=T))
+sim.dat_Oldpeak.male$Thal <- factor(sim.dat_Oldpeak.male$Thal)
+sim.dat_Oldpeak.male$Goal<-predict(all.male, newdata = sim.dat_Oldpeak.male, type = "response")
+sim.Oldpeak.male.df <- data.frame(Variable = rep(c("Oldpeak"),57),
+                                  Value = Oldpeak_seq.male,
+                                  heart_disease_prob = sim.dat_Oldpeak.male$Goal)
+
+simulated_predic <- rbind(sim.Thalach.male.df, sim.CA.male.df, sim.Oldpeak.male.df)
+
+gg = ggplot(simulated_predic,aes(x = Value, y = heart_disease_prob)) + geom_line() + facet_wrap(~Variable, scales = "free_x", ncol = 2)  + coord_cartesian(ylim = c(0, 1)) + labs(title = "Fitted values of probability of having heart disease for \ndifferent continous variables for males") + ylab("Probability of having heart disease") + xlab("Value")
+
+gg + theme(
+  plot.title = element_text(size = 11, face = "bold"),
+  plot.subtitle = element_text(size = 8),
+  axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),
+  legend.title=element_text(size=9), 
+  legend.text=element_text(size=8))
+```
+
+```{r warning = FALSE, message=FALSE, fig.width=5, fig.height=5, echo=FALSE}
+heart.data.female <- subset(heart.data, Gender = 0)
+heart.data.female <- heart.data.female %>%drop_na()
+Thalach_seq.female<-seq(96, 192, 1)
+sim.dat_Thalach.female<-data.frame(Thalach = Thalach_seq.female, 
+                    CA = median(heart.data.female$CA,na.rm=T),
+                    Oldpeak = median(heart.data.female$Oldpeak,na.rm=T),
+                    Thal = median(heart.data.female$Thal))
+sim.dat_Thalach.female$Thal <- factor(sim.dat_Thalach.female$Thal)
+sim.dat_Thalach.female$Goal<-predict(all.female, newdata = sim.dat_Thalach.female, type = "response")
+sim.Thalach.female.df <- data.frame(Variable = rep(c("Thalach"),97),
+                                  Value = Thalach_seq.female,
+                                  heart_disease_prob = sim.dat_Thalach.female$Goal)
+
+CA_seq.female<-seq(0, 3, 0.1)
+sim.dat_CA.female<-data.frame(Thalach = median(heart.data.female$Thalach,na.rm=T), 
+                    CA = CA_seq.female,
+                    Oldpeak = median(heart.data.female$Oldpeak,na.rm=T),
+                    Thal = median(heart.data.female$Thal,na.rm=T))
+sim.dat_CA.female$Thal <- factor(sim.dat_CA.female$Thal)
+sim.dat_CA.female$Goal<-predict(all.female, newdata = sim.dat_CA.female, type = "response")
+sim.CA.female.df <- data.frame(Variable = rep(c("CA"),31),
+                                  Value = CA_seq.female,
+                                  heart_disease_prob = sim.dat_CA.female$Goal)
+
+Oldpeak_seq.female<-seq(0, 6.2, 0.1)
+sim.dat_Oldpeak.female<-data.frame(Thalach = median(heart.data.female$Thalach,na.rm=T), 
+                    CA = median(heart.data.female$CA,na.rm=T),
+                    Oldpeak = Oldpeak_seq.female,
+                    Thal = median(heart.data.female$Thal,na.rm=T))
+sim.dat_Oldpeak.female$Thal <- factor(sim.dat_Oldpeak.female$Thal)
+sim.dat_Oldpeak.female$Goal<-predict(all.female, newdata = sim.dat_Oldpeak.female, type = "response")
+sim.Oldpeak.female.df <- data.frame(Variable = rep(c("Oldpeak"),63),
+                                  Value = Oldpeak_seq.female,
+                                  heart_disease_prob = sim.dat_Oldpeak.female$Goal)
+
+
+simulated_predic <- rbind(sim.Thalach.female.df, sim.CA.female.df, sim.Oldpeak.female.df)
+
+gg = ggplot(simulated_predic,aes(x = Value, y = heart_disease_prob)) + geom_line() + facet_wrap(~Variable, scales = "free_x", ncol = 2) + coord_cartesian(ylim = c(0, 1)) + labs(title = "Fitted values of probability of having heart disease for \ndifferent continous variables for females") + ylab("Probability of having heart disease") + xlab("Value")
+
+gg + theme(
+  plot.title = element_text(size = 11, face = "bold"),
+  plot.subtitle = element_text(size = 8),
+  axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),
+  legend.title=element_text(size=9), 
+  legend.text=element_text(size=8))
+```
+
+From the graphs above, we can clearly see that impact of Maximum heart rate achieved (Thalach) is very different on likelihood of males and females having a heart disease. Similarly, there is some difference in impact of No. of major vessels blocked (CA) on likelihood of males and females having a heart disease. While the impact of ST depression induced by exercise (Old peak) on likelihood of males and females having a heart disease is almost same.
+
+### Limitations
+
+One of the biggest limitations of the dataset available was the less number of females available in the dataset. This prevented us from using more variables in the model and identifying more interactions as doing so would lead to over fitting for females. To understand the effect better, we need to do a study for equal number of males and females and analyse the difference in impact of different variables (possibly more variables then the ones used in this project) on the likelihood of males and females having a heart disease. 
+
+### Conclusion
+
+From the results above, we can see that the impact of variables on males and females is drastically different except for the Old peak variable. The Odds ratio have helped us quantify the effect of different variables on the odds of a male or females having a heart disease. Thus, we can say that the variables do affect the males and females differently based on the limited data we have. The results may be slightly biases for females because of the less data available.
+
+
+### Appendix
+
+```{r warning = FALSE, message = FALSE, fig.width=15, fig.height=10, echo=FALSE}
+library(GGally)
+ggpairs(heart.data_first_7_variables.male %>% select (-Gender))
+ggpairs(heart.data_second_7_variables.male)
+ggpairs(heart.data_first_7_variables.female %>% select (-Gender))
+ggpairs(heart.data_second_7_variables.female)
+```
+
+Explanation of oldpeak variable:
+
+"An electrocardiogram (ECG) measures the heart's electrical activity. The waves that appear on it are labeled P, QRS, and T. Each corresponds to a different part of the heartbeat. The ST segment represents the heart's electrical activity immediately after the right and left ventricles have contracted, pumping blood to the lungs and the rest of the body. Following this big effort, ventricular muscle cells relax and get ready for the next contraction. During this period, little or no electricity is flowing, so the ST segment is even with the baseline or sometimes slightly above it. The faster the heart is beating during an ECG, the shorter all of the waves become. The shape and direction of the ST segment are far more important than its length. Upward or downward shifts can represent decreased blood flow to the heart from a variety of causes, including heart attack, spasms in one or more coronary arteries (Prinzmetal's angina), infection of the lining of the heart (pericarditis) or the heart muscle itself (myocarditis), an excess of potassium in the bloodstream, a heart rhythm problem, or a blood clot in the lungs (pulmonary embolism)."
+
+![ST segment of ECG](CAD012 ST elevation.png)
+
+Interaction between Thalach and Thal
+
+```{r warning = FALSE, message=FALSE, echo=FALSE}
+
+heart.data$Thal[heart.data$Thal == 3] <- "Normal"
+heart.data$Thal[heart.data$Thal == 6] <- "Fixed defect"
+heart.data$Thal[heart.data$Thal == 7] <- "Reversible defect"
+
+heart.data_Thal_nar <- heart.data %>% filter(!is.na(Thal))
+
+gg = ggplot(heart.data_Thal_nar, aes(x = Thalach, y = Goal,color = Gender)) + geom_smooth(method = "glm", method.args = list(family = "binomial")) + geom_jitter(width = 0, height = 0.15) + facet_wrap(~as.factor(Thal), ncol = 2) + labs(title = "Maximum heart rate achievemed against diagnosis result for different types of \nThalesemia", subtitle = "Points have been jittered and Logistic Model has been fitted", color = "Gender") + xlab("Maximum heart rate achieved") + ylab("Goal")
+
+gg + theme(
+  plot.title = element_text(size = 11, face = "bold"),
+  plot.subtitle = element_text(size = 8),
+  axis.title.x = element_text(size = 9),
+  axis.title.y = element_text(size = 9),
+  legend.title=element_text(size=9), 
+  legend.text=element_text(size=8))
+```
+
+For Males, the slope of Thalach for Males doesn't change a lot with the type of Thalassemia detected. For Females, we don't have enough data to know if the slope changes or not. Thus we cannot say that there is an interaction between Thalach and Thal.
+
+```{r warning = FALSE, message=FALSE, fig.width=5, fig.height=3, echo=FALSE}
+
+library(interactions)
+library(jtools)
+effect_plot(all.male, pred = 'Thal') + labs(title = "Fitted value of Diagnosis result for different \ntypes of Thalassemia for males") + ylab("Diagnosis result") + xlab("Types of Thalassemia")
+
+```
+
+```{r warning = FALSE, message=FALSE, fig.width=5, fig.height=3, echo=FALSE}
+
+effect_plot(all.female, pred = 'Thal') + labs(title = "Fitted value of Diagnosis result for different \ntypes of Thalassemia for females") + ylab("Diagnosis result") + xlab("Types of Thalassemia")
+
+```
+
+From the graphs above, we can clearly see that effect of Normal Thalassemia is very different for males and females. The range predicted values of goal is more for males as compared to females. Similarly there is a difference in the predicted value of goal for males and females even for Fixed Defect Thalassemia and Reversible Defect Thalassemia.
+
+
+

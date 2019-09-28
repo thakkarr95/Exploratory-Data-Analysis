@@ -1,0 +1,93 @@
+---
+title: "Problem Set 6"
+author: "Abhilash Kuhikar, Darshan Shinde, Raj Thakkar, Dhruuv Agarwal"
+date: "March 27, 2019"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE)
+```
+
+
+```{r warning = FALSE, message=FALSE}
+
+library('tidyverse')
+library('GGally')
+library('MASS')
+library('broom')
+cb_palette = c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+```
+
+### 1. Draw an appropriate faceted graph showing how barley yield varied by year at each location, using color as necessary. (Note: Lines might be better than dots here.) When looking at successive years, was it more common for the yields to move in the same direction at all locations, or was it more common for the yields to increase at some locations and decrease at others?
+
+```{r warning = FALSE, message = FALSE}
+
+barley = read.table('minnesota.barley.yield.txt', header = TRUE)
+
+gg = ggplot(barley, aes(x = year, y = yield, group = site, color = gen)) + geom_point() + 
+      geom_smooth(se = TRUE, method.args = list(span = 0.8, degree = 1)) + 
+      theme(axis.text.x = element_text(size = 5)) + facet_wrap(~site)
+gg + labs(title = 'Barley yield varied by year faceted by location',
+              color = 'Type of barley') + xlab('Year') + ylab('Yield (in bushels per acre)')
+
+```
+
+* Looking at the graph above we can see that in general, it is not common for the yield of barley crop to move in the same direction.
+* We can see that for Crookston the yield is increasing uptill year 1933 and then it starts decreasing
+* For Duluth and Morris, the yield has a curve similar to cosine and the yield first decreasesfrom 1927 to 1930, then it starts to increase till year 1933 and post that the yield again starts to decrease
+* For GrandRapids, StPaul and Waseca, the yield seems to have a decreasing trend for almost all the years.
+
+### 2. Fit a model with yield as the response and gen (variety), year, and site as explanatory variables, with the goal of determining whether Morris 1931-1932 is an anomaly. Justify why you chose this model and not some other one. Because of outliers, you should use a robust fitting method.
+
+Since, the trend for the locations are quite similar so interaction between `year` and `site` variables is not needed as such.
+
+We will use rlm as it is robust against outliers. When we try to add interaction in the model, we get an error as data is spare for some combinations of type of barley, year and location.
+
+
+```{r warning = FALSE, message=FALSE}
+
+barley$year <- as.factor(barley$year)
+
+barley.rlm = rlm(yield ~ gen + site + year, psi = psi.bisquare, data = barley)
+barley.df = augment(barley.rlm)
+
+var(fitted.values(barley.rlm))/var(barley$yield)
+var(fitted.values(barley.rlm))/(var(fitted.values(barley.rlm)) + var(residuals(barley.rlm)))
+
+```
+
+* There is no specific pattern in variety of barley (variable `gen`) and we haven't considered any interaction for the same, but as an additive predictor for the model.
+* The R2 value (0.45 approximately) which means the model has captured over 45% percent of the variance so we can proceed
+
+### 3. Draw plots of the fit and/or residuals with the goal of determining whether Morris 1931-1932 is a mistake, or whether it can be explained as natural variation. As best as you can tell, was there a mistake?
+
+
+
+```{r fig.width=8, fig.height=8}
+
+barley.df <- barley.df %>% filter(year %in% c(1931, 1932))
+
+ggplot(barley.df, aes(x = .fitted, y = gen)) + 
+  geom_point() + 
+  facet_wrap(~site + year) +
+  theme(axis.text.y = element_text(size = 7)) + 
+  labs(title = 'Fitted values of yield vs Year for various maize types at all locations')
+
+```
+
+
+```{r fig.width=8, fig.height=8}
+
+
+ggplot(barley.df, aes(x = .resid, y = gen)) + geom_point() + facet_wrap(~site +
+year) + theme(axis.text.y = element_text(size = 7)) + labs(title = 'Residuals for yield vs Year for various maize types at all locations')
+
+```
+
+* From the fitted values graph of different types of maze for the year 1931 and 1932 at all the sites, we can see that the pattern observed in Morris for the year 1931 and 1932 is similar to the pattern observed for locations Crookston and Durith. Thus, we cannot definitvely say that there is an anomoly of the data. It is possible that some other factors influenced the change in yields from 1931 to 1932.
+
+* From the graph of residuals we can see that there is no distinct patterns observed at different locations indicating that model fits the data quite well.

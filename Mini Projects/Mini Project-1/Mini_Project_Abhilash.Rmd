@@ -1,0 +1,186 @@
+---
+title: "Mini project 1"
+author: "Abhilash Kuhikar, Raj Thakkar, Darshan Shinde and Dhruuv Agarwal"
+date: "February 24, 2019"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE, echo = FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE)
+```
+
+```{r echo = FALSE}
+suppressWarnings(suppressMessages(library(haven)))
+suppressWarnings(suppressMessages(library(tidyverse)))
+suppressWarnings(suppressMessages(library(foreign)))
+suppressWarnings(suppressMessages(library(ggplot2)))
+suppressWarnings(suppressMessages(library(forecast)))
+cb_palette = c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+#### 1. How has per capita income for each decile in the U.S. changed since 1988?
+
+Use the WPID data set to answer this. Give both graphical and numerical results, and describe in words both the differences in income level between the deciles and the differences in changes in income for each decile.
+
+```{r echo = FALSE, warning= FALSE, message = FALSE}
+
+# Loading the desired library and importing the dataset
+LM_WPID_web_2 <- read_dta("LM_WPID_web_2.dta")
+
+# Filetring the dataset only for USA
+LM_WPID_US <- LM_WPID_web_2 %>% filter(country == "United States")
+LM_WPID_US$group <- factor(LM_WPID_US$group)
+
+LM_WPID_US$facet_group <- ifelse(as.numeric(LM_WPID_US$group) <= 5, "Lower Deciles", "Higher Deciles")
+LM_WPID_US$facet_group <- factor(LM_WPID_US$facet_group, levels = c("Lower Deciles", "Higher Deciles"))
+
+```
+
+Plotting the Income Levels for each decile
+
+```{r echo = FALSE, warning= FALSE, message = FALSE}
+ggplot(LM_WPID_US,aes(x = bin_year, y = RRinc, color = group)) + geom_point() +geom_line() + xlab("Year") + ylab("Per capita income (in 2005 USD)") + ggtitle("Per capita income with decile in US") + scale_color_brewer(palette="Paired") + labs(color = 'Decile')
+```
+
+
+*   Difference in income level between the deciles:
+
+    We can see from the graph above that the income for the lower deciles have not changed much over the period compared to the higher deciles. For example, let's look at the decile '10' for which the income has increased significantly over the period of 15 years and the income for this decile is far above the other deciles. We can also observe that the amount of increase in the per capita income is directly proportional to the decile number. In other words, the income for the lowest decile has increased the least and the income for the highest decile has increased the most over the entire period. We can see the general trend that the gap in income between the rich and the poor is increasing.
+
+*   We see that the growth of income has been maximum for the 10th decile and lowest (almost flat line) for the 1st decile. 
+
+```{r echo = FALSE, warning= FALSE, message = FALSE}
+LM_WPID_US_yoy <- LM_WPID_US %>% dplyr::select(country, bin_year, group, RRinc)
+LM_WPID_US_yoy <- LM_WPID_US_yoy %>% spread(bin_year, RRinc)
+LM_WPID_US_yoy$`1988_1993` <- (LM_WPID_US_yoy$`1993`- LM_WPID_US_yoy$`1988`)*100/LM_WPID_US_yoy$`1988`
+LM_WPID_US_yoy$`1993_1998` <- (LM_WPID_US_yoy$`1998`- LM_WPID_US_yoy$`1993`)*100/LM_WPID_US_yoy$`1993`
+LM_WPID_US_yoy$`1998_2003` <- (LM_WPID_US_yoy$`2003`- LM_WPID_US_yoy$`1998`)*100/LM_WPID_US_yoy$`1998`
+LM_WPID_US_yoy$`2003_2008` <- (LM_WPID_US_yoy$`2008`- LM_WPID_US_yoy$`2003`)*100/LM_WPID_US_yoy$`2003`
+
+LM_WPID_US_yoy_final <- LM_WPID_US_yoy %>% dplyr::select(country,group,`1988_1993`,`1993_1998`,`1998_2003`,`2003_2008`)
+LM_WPID_US_yoy_final <- LM_WPID_US_yoy_final %>% gather(Year_to_Year,YOY_Change,c(`1988_1993`,`1993_1998`,`1998_2003`,`2003_2008`))
+
+LM_WPID_US_yoy_final <- LM_WPID_US_yoy_final[order(LM_WPID_US_yoy_final$group),]
+LM_WPID_US_yoy_final$facet_group <- ifelse(as.numeric(LM_WPID_US_yoy_final$group) <= 5, "Lower Deciles", "Hgher Deciles")
+LM_WPID_US_yoy_final$group <- factor(LM_WPID_US_yoy_final$group)
+LM_WPID_US_yoy_final$facet_group <- factor(LM_WPID_US_yoy_final$facet_group)
+
+ggplot(LM_WPID_US_yoy_final,aes(x = Year_to_Year, y = YOY_Change, color = LM_WPID_US_yoy_final$group ,group = LM_WPID_US_yoy_final$group)) + geom_line() + geom_point()  + xlab("Year Bin") + ylab("Percentage change in per capita income") + labs(title = "Per capita income change with decile in US", subtitle = "Example: 1988_1993 indicates the change in income from 1988 to 1993", colour = "Decile", caption = "Percentage change in income from 'From_year' to 'To_year'") + scale_color_brewer(palette="Paired") 
+
+```
+
+*   The differences in changes in income for each decile:
+
+    The percentage change is calculated as:  
+    $$percentage\_change = \frac{current\_year\_income - previous\_year\_income}{previous\_year\_income}\times 100$$  
+    The above graph precisely points out the percentage change in income for the given year bins. For example, the negative values for certain deciles for the year bin 1988-1993 indicates that the income has been decreased for these deciles decreased in 1993 as compared to 1988.  
+    We can observe from the graph that the percentage change values after 1993 are always positive for all the deciles. This means that the change in income has always been positive indicating that the per capita income for all the deciles is monotonically increasing after 1993. We can observe the steepest increase in percentage change for the decile 10 from the year 1993 to 1998.  
+    The rate of change of the income increases with the increase in the decile number.  
+```{r echo = FALSE, warning= FALSE, message = FALSE}
+cb_palette = c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+wpid = read_dta("LM_WPID_web_2.dta")
+ventile = read.dta('ventile_2011_for_release_LCU.dta')
+```
+
+
+#### 2. How does the present distribution of income, relative to a country's mean, differ between selected countries?
+
+
+```{r echo = FALSE, warning= FALSE, message = FALSE}
+ventile5 = subset(ventile, contcod == 'USA' | contcod == 'IND' | contcod == 'GBR' | contcod == 'DEU' | contcod == 'PAK')
+#ventile5 = subset(ventile5, year = 2011)
+ventile5$adjusted_ventile_income = ventile5$ventile_income/ave(ventile5$ventile_income, ventile5$contcod)
+gg = ggplot(ventile5, aes(x = ventile, y = adjusted_ventile_income, color = contcod)) + geom_line() + scale_color_manual(values = cb_palette) + geom_abline(slope = 0, intercept = 1)
+gg + labs(title = "Distribution of countries' incomes relative to their respective mean incomes", subtitle = "Horizontal line represents the income where ventile income = mean income", colour = "Country\nCode") + xlab("Ventile") + ylab("Ratio of ventile income to the mean income")
+```
+
+*   We can observe from the above graph that in general, the distribution of income relative to mean is almost similar for all the five countries over the ventiles. We can also observe that the incomes of ventiles 1 to 12 are below the mean income for all the countries. This means that more than 60 percent of the population has income below the mean income of the country. We will now take a detailed look at the distribution of each country.  
+    **RVM: ratio of the ventile income to the mean income of that country**  
+    **Germany(DEU):** The 20th ventile income is about 3 times the mean income of the country. This ratio of highest ventile income to the mean income of the country is lowest for Germany suggesting us that the gap between the income of the highest ventile and the mean income is lowest for Germany and hence their economy is rather less skewed compared to other 4 countries.  
+    **United Kingdom(GBR):** The distribution of income is almost similar to that of United States. The ventile incomes of about first 13 ventiles is below the mean.   
+    **India(IND):** The income for highest ventile is about 4 times the mean income. This RVM for 20th ventile is the highest amongst all the countries. We can also observe that about 14 ventiles are below the mean income. This means that India has the highest percentage of population amongst all countries below the mean.  
+    **Pakistan(PAK):** The RVM for ventile 1 is closest to the mean compared to the other 4 countries. About 13 ventiles are beow the mean income.  
+    **United States(USA):** The RVM for ventile 1 was found to be the farthest from the mean amongst all the countries. 
+    
+#### 3. Is the percentage of income earned by the top 5 percent in a country related to mean income in that country? What about the percentage of income earned by the bottom 5 percent?
+    
+```{r echo = FALSE, warning = FALSE, message = FALSE}
+# mean_incomes = aggregate(ventile$ventile_income, list(ventile$contcod), mean)
+
+# ventile$log_ventile_income <- log10(ventile$ventile_income)
+
+ventile_mean_total <- ventile %>% group_by(contcod) %>% summarise(mean_income = mean(ventile_income), total_income = sum(ventile_income))
+
+
+top5_bottom_5 <- ventile %>% subset(ventile == 20 | ventile == 1) %>% dplyr::select(contcod, ventile, ventile_income)
+top5_bottom_5 <- top5_bottom_5 %>% spread(key = ventile, value = ventile_income)
+
+
+top5_bottom_5$mean_income <- ventile_mean_total$mean_income[match(ventile_mean_total$contcod, top5_bottom_5$contcod)]
+top5_bottom_5$total_income <- ventile_mean_total$total_income[match(ventile_mean_total$contcod, top5_bottom_5$contcod)]
+top5_bottom_5$top_5_percent <- (top5_bottom_5$`20`/top5_bottom_5$total_income)*100
+top5_bottom_5$bottom_5_percent <- (top5_bottom_5$`1`/top5_bottom_5$total_income)*100
+
+top5_bottom_5$log_mean_income <- log10(top5_bottom_5$mean_income)
+
+#top5_bottom_5$contcod_new <- top5_bottom_5$contcod
+#top5_bottom_5$contcod_new[top5_bottom_5$contcod == "CHN-U" | top5_bottom_5$contcod == "CHN-R"] <- "CHN"
+
+
+#wpid$contcod_new <- gsub("-[RU]","",wpid$contcod)
+#wpid_grouped <- wpid %>% group_by(contcod_new,region) %>% summarise(tot = sum(year))
+#wpid_grouped <- wpid_grouped %>% subset(contcod_new %in% top5_bottom_5$contcod_new)
+
+#top5_bottom_5$region <- wyd_88_05_for_release_grouped$region[match(wyd_88_05_for_release_grouped$contcod_new, top5_bottom_5$contcod_new)]
+#This wasn't commented earlier but was throwing error and hence commented
+
+
+
+#Added by Raj to check the effect of weight based on population
+
+ventile_pop <- ventile %>% dplyr::select(contcod, totpop)
+ventile_pop <- ventile_pop %>% distinct()
+
+top5_bottom_5$totpop <- ventile_pop$totpop[match(top5_bottom_5$contcod, ventile_pop$contcod)]
+
+```
+
+```{r echo = FALSE, warning= FALSE, message = FALSE}
+
+ggplot(top5_bottom_5,aes(x = log_mean_income, y = top_5_percent)) + geom_point() + geom_smooth(method = loess, method.args = list(degree = 1)) + labs(title = "Relationship between percentage of income earned by top 5 percent and mean income ", subtitle = "Mean income represented in log scale") + xlab("Mean Income (in log scale)") + ylab("Percentage of income earned by top 5 percent")
+
+```
+
+```{r echo = FALSE, warning= FALSE, message = FALSE}
+
+ggplot(top5_bottom_5,aes(x = log_mean_income, y = top_5_percent)) + geom_text(aes(label = contcod), alpha = 0.75) + geom_smooth(method = loess, method.args = list(degree = 1), se = FALSE) + labs(title = "Percentage of income earned by top 5 percent v/s mean income ", subtitle = "Mean income represented in log scale") + xlab("Mean Income (in log scale)") + ylab("Percentage of income earned by top 5 percent")
+
+
+```
+
+Fom the graph above, we can say that there is no relationship between the percentage of income earned by the top 5 percent in a country and mean income in that country. One of the major outliers is country Guinea-Bissau (country code = GNB) which is located in Africa in which the top 5% of the population earns 60% of the total income earned in that country. 
+
+Other countries which are farther from the fitted lines are Zambia (country code = ZMB), Namibia (country code = NAM) etc. which are located in the African sub contitnent. And countries such as Chile (country code = CHL), Colombia (country code = COL), Paraguay (country code = PRY) etc whic are located in the South American subcontinent.
+
+Thus we can say that countries from Afrcian and South American sub contitnent have the trend that top 5% of the population earns more than 20% of the country's total income.
+
+
+```{r echo = FALSE, warning= FALSE, message = FALSE}
+
+ggplot(top5_bottom_5,aes(x = log_mean_income, y = bottom_5_percent)) + geom_point() + geom_smooth(method = loess, method.args = list(degree = 1)) + labs(title = "Percentage of income earned by bottom 5 percent v/s mean income", subtitle = "Mean income represented in log scale") + xlab("Mean Income (in log scale)") + ylab("Percentage of income earned by bottom 5 percent")
+
+```
+
+
+```{r echo = FALSE, warning= FALSE, message = FALSE}
+
+ggplot(top5_bottom_5,aes(x = log_mean_income, y = bottom_5_percent)) + geom_text(aes(label = contcod), alpha = 0.75) + geom_smooth(method = loess, method.args = list(degree = 1), se = FALSE) + labs(title = "Percentage of income earned by bottom 5 percent v/s mean income ", subtitle = "Mean income represented in log scale") + xlab("Mean Income (in log scale)") + ylab("Percentage of income earned by bottom 5 percent")
+
+
+```
+
+Fom the graph above, we can say that there is a non monotonic relationship between the percentage of income earned by the bottom 5 percent in a country and mean income in that country (It increases and then decreases). There are no major outliers observed in this graph.
+
+Bottom 5 percent in Austria (country code = AUT) have the least contributuon in the total income earned by the population in the country where as the highest contributuon is by the bottom 5 percent population of Belarus (country code = BLR), Pakistan (Country code = PAK) and Ukraine (country code = UKR) 
